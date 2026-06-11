@@ -83,11 +83,10 @@ Which of these are MISSING? (cross-reference Lecture 1 OWASP Top 10:2025 — A06
 ## Bonus: CI Smoke Test
 
 - Workflow file: `.github/workflows/lab1-smoke.yml`
-- Trigger: `pull_request` on `main`
-- Permissions: `contents: read`
-- Run URL: <paste your GitHub Actions run URL here>
-- Workflow run duration: <paste duration here>
+- Trigger: `pull_request` on main
+- Run URL (must be green): https://github.com/Muratich/DevSecOps-Intro/actions/runs/27381865868/job/80920267728
+- Workflow run duration: 19s
 - Curl response excerpt:
 ```
-<paste your HTTP 200 / application-version response here>
+{"version":"20.0.0"}
 ```
