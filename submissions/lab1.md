@@ -75,7 +75,7 @@ Which of these are MISSING? (cross-reference Lecture 1 OWASP Top 10:2025 — A06
   - Title is clear (`feat(labN): <topic>` style)
   - No secrets/large temp files committed
   - Submission file at `submissions/labN.md` exists
-- Auto-fill verified: [ ] Yes — PR description showed my template
+- Auto-fill verified: [ ] Yes — template file created, but GitHub did not auto-populate the draft PR because the template is not yet present in the base branch, which should not be modified.
 
 ## GitHub Community
 - I starred the course repository and `simple-container-com/api`, and followed the professor, TAs, and classmates (Philip-78, RanisKhaertdinov, JoraXD). Stars help bookmark useful open-source projects and show support to maintainers, while following other developers helps me learn from their work and stay connected in team projects.
