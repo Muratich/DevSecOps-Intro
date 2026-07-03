@@ -1,75 +1,47 @@
-# Lab 6 — IaC Security: Checkov + KICS + a Custom Policy
+# Lab 6 — Submission
 
-## Task 1: Checkov on Terraform + Pulumi
+## Task 1: Checkov on Terraform
 
-### Terraform scan
-- Total checks: 127
-- Passed: 49
-- Failed: 78
+### Terraform scan (passed/failed per framework)
+| Framework | Passed | Failed |
+|-----------|-------:|-------:|
+| terraform | 49 | 78 |
+| secrets | 0 | 2 |
 
-| Severity | Count |
-|----------|------:|
-| Critical | 0 |
-| High | 0 |
-| Medium | 0 |
-| Low | 0 |
-| Not provided by Checkov | 78 |
-
-> **Note:** Checkov did not provide severity metadata for these findings in the generated JSON report, therefore findings were grouped as "Not provided".
-
-### Top 5 rule IDs (by frequency among failed checks)
+### Top 5 rule IDs (by frequency)
 
 | Rule ID | Count | What it checks |
 |---------|------:|----------------|
 | `CKV_AWS_289` | 4 | IAM policies should not allow permissions management or resource exposure without constraints |
 | `CKV_AWS_355` | 4 | IAM policies should not allow `*` as a statement's resource for restrictable actions |
+| `CKV_AWS_23`  | 3 | Every security group and rule must have a description |
 | `CKV_AWS_288` | 3 | IAM policies should not allow data exfiltration |
 | `CKV_AWS_290` | 3 | IAM policies should not allow write access without constraints |
-| `CKV_AWS_23`  | 3 | Every security group and rule must have a description |
-
-### Pulumi scan
-
-Pulumi source was reviewed using Checkov secret scanning.
-The full infrastructure configuration scan was performed with KICS in Task 2 because Checkov v3.3.2 does not directly scan Pulumi source files as Terraform HCL.
-
-- Total checks: 1
-- Failed: 1
-- Passed: 0
-
-
-| Severity | Count |
-|----------|------:|
-| Critical | 0 |
-| High     | 0 |
-| Medium   | 0 |
-| Low      | 0 |
-| Not provided by Checkov | 1 |
-
-**Failed check:**  
-- `CKV_SECRET_6` (Base64 High Entropy String) – found in `Pulumi-vulnerable.yaml` (line 19) containing a high-entropy string that appears to be a secret key.
-
-> **Note:** No severity levels were provided for this check.
 
 ### Module-leverage analysis (Lecture 6 slide 17)
 
-The most effective single fix would be to create a reusable template for IAM policies that gives only the minimum permissions needed by default.
+Most of the top rules (`CKV_AWS_289`, `355`, `288`, `290`) point to the same problem: IAM policies in `iam.tf` use `"*"` for actions and resources. Instead of fixing each policy one by one, it makes more sense to create one shared IAM module with strict, limited permissions. One change at the module level would remove 14 of 78 failed checks - about 18% of all Terraform findings.
 
-If we use this template instead of writing custom policies for each resource, we can fix the 4 most common violations (`CKV_AWS_289`, `355`, `288`, and `290`). This would eliminate at least 14 errors out of 78 (almost one-fifth of all problems). Most AWS access issues would be solved with one change.
+## Task 2: KICS on Ansible + Pulumi
 
-## Task 2: KICS on Ansible
-
-### Severity breakdown
-
+### Ansible — severity breakdown
 | Severity | Count |
 |----------|------:|
-| Critical | 0 |
 | HIGH | 9 |
 | MEDIUM | 0 |
 | LOW | 1 |
 | INFO | 0 |
-| Total | 10 |
 
-### Top 5 KICS queries (by frequency)
+### Pulumi — severity breakdown
+| Severity | Count |
+|----------|------:|
+| CRITICAL | 1 |
+| HIGH | 2 |
+| MEDIUM | 1 |
+| LOW | 0 |
+| INFO | 2 |
+
+### Top 5 KICS queries — Ansible (by frequency)
 
 | Query | Severity | Files |
 |-------|----------|------:|
@@ -78,18 +50,15 @@ If we use this template instead of writing custom policies for each resource, we
 | Passwords And Secrets - Generic Secret | HIGH | 1 |
 | Unpinned Package Version | LOW | 1 |
 
-> **Note:** Only 4 queries were displayed because KICS found only 4 unique query types in the Ansible scan results, so there was no fifth query to include.
+> KICS found only 4 different query types in the Ansible scan, so the table has 4 rows instead of 5.
 
 ### Checkov vs KICS — when to use which? (Lecture 6 slide 10)
 
-- **One thing Checkov did better for the Terraform sample:**  
-Checkov worked well with Terraform files and provided many Terraform-specific security checks, for example checking AWS IAM permissions, security groups, and storage settings. It was useful for finding infrastructure configuration problems.
+- **One thing Checkov did better for the Terraform sample:** Checkov is built for Terraform and has many ready-made AWS rules. It quickly found problems with IAM policies, security groups, and database settings - for example, wildcard permissions and missing descriptions - and gave clear rule IDs like `CKV_AWS_289` that are easy to track in CI.
 
-- **One thing KICS did better for the Ansible sample:**  
-KICS was better for scanning Ansible because it understands different Infrastructure-as-Code formats and can find problems inside playbooks, such as hardcoded passwords, insecure commands, and bad configuration practices.
+- **One thing KICS did better for the Ansible sample:** KICS understands Ansible playbooks and inventory files. It found hardcoded passwords and secrets in plain text across several files, plus an unpinned package version - things Checkov does not look for because it does not scan Ansible at all.
 
-- **Example of a finding only ONE of them caught:**  
-KICS found Ansible-specific issues like passwords stored in playbooks and unsafe shell usage, while Checkov would not detect these because it is mainly focused on Terraform and cloud infrastructure configuration.
+- **Example of a finding only ONE of them caught:** KICS flagged `RDS DB Instance Publicly Accessible` (CRITICAL) in the Pulumi YAML file. Checkov did not catch this because it does not scan Pulumi source code - only Terraform in Task 1.
 
 ## Bonus: Custom Checkov Policy
 
@@ -110,29 +79,33 @@ definition:
   operator: equals
   value: true
 ```
-Output: Passed checks: 50, Failed checks: 79, Skipped checks: 0
 
 ### Rule fires
-Output of `jq '.results.failed_checks[] | select(.check_id | startswith("CKV2_CUSTOM_"))'`:
+
+Output of the B.4 jq (must show ≥1 failed check whose `check_id` starts with `CKV2_CUSTOM_`):
 
 ```json
-{
-  "check_id": "CKV2_CUSTOM_1",
-  "check_name": "Ensure RDS instances have storage encryption enabled",
-  "check_result": {
-    "result": "FAILED",
-    "evaluated_keys": [
-      "storage_encrypted"
-    ]
-  },
-  "file_path": "\\database.tf",
-  "resource": "aws_db_instance.unencrypted_db",
-  "file_line_range": [
-    5,
-    37
-  ]
-}
+[
+  {
+    "check_id": "CKV2_CUSTOM_1",
+    "check_name": "Ensure RDS instances have storage encryption enabled",
+    "check_result": {
+      "result": "FAILED",
+      "evaluated_keys": [
+        "storage_encrypted"
+      ]
+    },
+    "file_path": "\\database.tf",
+    "resource": "aws_db_instance.unencrypted_db",
+    "file_line_range": [
+      5,
+      37
+    ],
+    "severity": "HIGH"
+  }
+]
 ```
 
 ### Why this rule matters
-Database encryption protects sensitive data at rest and reduces the risk of data exposure if database storage, snapshots, or backups are compromised. This custom policy enforces AWS security best practices by requiring encryption for RDS instances.
+
+If an RDS database is not encrypted, anyone who gets access to the disk, backup, or snapshot can read the data in plain text. This is a common real-world risk - for example, misconfigured cloud storage played a role in large data leaks like the 2019 Capital One incident. Turning on `storage_encrypted = true` matches AWS security best practices and CIS AWS Foundations Benchmark (control 2.3.1), which requires encryption for databases that store sensitive data.
